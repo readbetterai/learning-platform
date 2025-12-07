@@ -74,27 +74,164 @@
 
 ## 3. API Design Philosophy
 
-**Hybrid Approach: GraphQL (Primary) + REST**
+**REST-First Approach (MVP), GraphQL Migration Path (Future)**
 
-### GraphQL for:
-- Student dashboards (complex nested queries: Student → Homework → Words → Progress)
-- Content browsing (Book → Chapters → Sentences → Words)
-- Progress reports (multi-level aggregations)
-- Quiz taking interface (QuizAttempt with questions and answers)
+### Rationale: Start Simple, Evolve When Needed
 
-**Advantages**:
-- Schema perfectly suits GraphQL's relationship traversal
-- Reduces over-fetching (mobile app friendly)
-- Single query for complex student progress views
-- Real-time subscriptions for quiz sessions
+For the MVP phase, we'll use a **RESTful API** with pragmatic endpoint design:
+- **Lower complexity**: Well-understood by most developers
+- **Faster initial development**: No GraphQL schema/resolver overhead
+- **Mature tooling**: OpenAPI/Swagger documentation, Postman, standard HTTP caching
+- **Clear migration path**: REST endpoints can coexist with GraphQL during gradual adoption
 
-### REST for:
-- Authentication/Authorization (POST /auth/login, /auth/register)
-- File uploads (cover images, bulk content imports)
-- Webhooks (external integrations)
-- Simple CRUD operations (administrative tasks)
+**When to consider GraphQL migration**:
+- Mobile app experiences significant over-fetching (>50% unused data)
+- Frontend requires 4+ sequential API calls for common views
+- Real-time features become core (quiz sessions, live progress updates)
+- Team has capacity to maintain GraphQL infrastructure
 
-### Example GraphQL Schema Structure:
+---
+
+### REST API Design for MVP
+
+#### Core Principles
+1. **Resource-oriented URLs**: `/students`, `/books`, `/quizzes`
+2. **Nested resources for relationships**: `/homeworks/:id/words`
+3. **Query parameters for filtering**: `?status=ACTIVE&sort=dueDate`
+4. **Embedded resources to reduce roundtrips**: `?include=words,progress`
+
+#### Example Endpoints
+
+**Authentication & Students**
+```
+POST   /api/auth/register
+POST   /api/auth/login
+GET    /api/students/:id
+PATCH  /api/students/:id
+GET    /api/students/:id/profile
+```
+
+**Content Management**
+```
+GET    /api/books?difficulty=INTERMEDIATE&page=1
+GET    /api/books/:id
+GET    /api/books/:id/chapters
+GET    /api/chapters/:id/sentences?include=words
+GET    /api/words/:id?include=definitions,examples
+POST   /api/words/:id/track          # Add to student's learning list
+```
+
+**Homework Workflow**
+```
+GET    /api/students/:id/homeworks?status=ACTIVE&include=words
+GET    /api/homeworks/:id?include=words.progress
+POST   /api/homeworks
+PATCH  /api/homework-words/:id/complete
+GET    /api/homework-words/:id/progress
+```
+
+**Quiz System**
+```
+POST   /api/quizzes                   # Create quiz (admin/teacher)
+GET    /api/quizzes/:id?include=questions
+POST   /api/quiz-attempts             # Start quiz
+GET    /api/quiz-attempts/:id
+POST   /api/quiz-attempts/:id/answers # Submit answer
+POST   /api/quiz-attempts/:id/complete
+GET    /api/students/:id/quiz-attempts?page=1&limit=20
+```
+
+**Progress Tracking**
+```
+GET    /api/students/:id/progress?status=LEARNING&include=word
+PATCH  /api/student-word-progress/:id
+GET    /api/students/:id/analytics?from=2025-01-01&to=2025-01-31
+GET    /api/students/:id/review-queue  # Words due for review (nextReviewAt)
+```
+
+**File Uploads**
+```
+POST   /api/books/:id/cover-image     # Multipart form upload
+POST   /api/content/import            # Bulk book/chapter import
+```
+
+#### Response Patterns
+
+**Success Response with Embedded Data**:
+```json
+GET /api/homeworks/123?include=words.progress
+
+{
+  "id": "123",
+  "studentId": "456",
+  "title": "Week 1 Vocabulary",
+  "dueDate": "2025-12-15T00:00:00Z",
+  "status": "ACTIVE",
+  "words": [
+    {
+      "id": "789",
+      "word": "eloquent",
+      "progress": {
+        "status": "LEARNING",
+        "correctCount": 2,
+        "nextReviewAt": "2025-12-10T10:00:00Z"
+      }
+    }
+  ]
+}
+```
+
+**Pagination**:
+```json
+GET /api/students/123/quiz-attempts?page=2&limit=20
+
+{
+  "data": [...],
+  "meta": {
+    "page": 2,
+    "limit": 20,
+    "total": 150,
+    "totalPages": 8
+  },
+  "links": {
+    "first": "/api/students/123/quiz-attempts?page=1&limit=20",
+    "prev": "/api/students/123/quiz-attempts?page=1&limit=20",
+    "next": "/api/students/123/quiz-attempts?page=3&limit=20",
+    "last": "/api/students/123/quiz-attempts?page=8&limit=20"
+  }
+}
+```
+
+**Error Response**:
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid quiz answer format",
+    "details": [
+      { "field": "answer", "issue": "Required for MULTIPLE_CHOICE questions" }
+    ]
+  }
+}
+```
+
+---
+
+### Future GraphQL Migration Path
+
+**Phase 2-3 Consideration**: If the following criteria are met:
+- ✅ Mobile app performance suffers from over-fetching
+- ✅ Complex dashboard queries require 5+ REST calls
+- ✅ Real-time features become critical (quiz sessions, notifications)
+- ✅ Team has GraphQL expertise or capacity to learn
+
+**Incremental Adoption Strategy**:
+1. **Pilot with one module**: Start with Student Progress queries (most complex)
+2. **Coexistence period**: REST and GraphQL run side-by-side
+3. **Gradual migration**: Move endpoints one domain at a time
+4. **Deprecation timeline**: 6-12 months for REST sunset (if full migration)
+
+**Example GraphQL Schema (Future Reference)**:
 ```graphql
 type Query {
   student(id: ID!): Student
@@ -114,6 +251,92 @@ type Subscription {
   homeworkDueReminder(studentId: ID!): Notification
 }
 ```
+
+**GraphQL Advantages (when complexity warrants)**:
+- Single query for complex nested data
+- Eliminates over-fetching (critical for mobile)
+- Built-in real-time subscriptions
+- Self-documenting schema with introspection
+
+---
+
+## 3.1. API Design Trade-offs: Why REST-First?
+
+### Comparison Summary
+
+| Criteria | REST (Chosen for MVP) | GraphQL | Hybrid |
+|----------|----------------------|---------|--------|
+| **Initial Complexity** | ✅ Low | ⚠️ Medium | ❌ High |
+| **Development Speed** | ✅ Fast | ⚠️ Moderate | ❌ Slower |
+| **Team Learning Curve** | ✅ Minimal | ⚠️ Significant | ❌ Steepest |
+| **Over-fetching Issues** | ⚠️ Moderate | ✅ None | ✅ None |
+| **Mobile Performance** | ⚠️ Acceptable | ✅ Optimal | ✅ Optimal |
+| **Caching** | ✅ HTTP native | ❌ Complex | ⚠️ Mixed |
+| **Real-time Support** | ❌ Add WebSockets | ✅ Built-in subscriptions | ✅ Built-in |
+| **File Uploads** | ✅ Native | ⚠️ Requires multipart spec | ✅ Use REST |
+| **Tooling Maturity** | ✅ Excellent | ✅ Good | ⚠️ Fragmented |
+| **Documentation** | ✅ OpenAPI/Swagger | ✅ Schema introspection | ⚠️ Two systems |
+| **Operational Overhead** | ✅ Low | ⚠️ Medium | ❌ High |
+
+### Decision Rationale
+
+**Why REST for MVP?**
+1. **Faster to market**: No GraphQL schema/resolver boilerplate for 50+ endpoints
+2. **Team efficiency**: Most developers already know REST patterns
+3. **Good enough**: Over-fetching is acceptable for web dashboard (not bandwidth-constrained)
+4. **Proven caching**: HTTP caching (CDN, browser) works out-of-the-box
+5. **OpenAPI documentation**: Auto-generated docs with Swagger UI
+
+**GraphQL Migration Triggers**:
+- ✅ Mobile app launched (bandwidth becomes critical)
+- ✅ Dashboard requires 5+ sequential calls (e.g., Student → Homeworks → Words → Progress → Analytics)
+- ✅ Real-time quiz sessions become core feature
+- ✅ Team comfortable with initial architecture, ready for next complexity level
+
+**Avoided "Hybrid Trap"**: Starting with both GraphQL and REST would:
+- Double the API surface area to maintain
+- Split team focus across two paradigms
+- Delay MVP delivery by 30-50%
+- Provide marginal benefit until user base scales
+
+### REST Optimization Strategies (to delay GraphQL need)
+
+1. **Embedded Resource Loading**:
+   ```
+   GET /api/homeworks/123?include=words,words.progress,student
+
+   # Returns homework with all nested data in one response
+   # Reduces need for GraphQL-style nested queries
+   ```
+
+2. **Field Filtering** (Sparse Fieldsets):
+   ```
+   GET /api/students/123?fields=id,name,email
+
+   # Only return requested fields (reduces payload)
+   # Mitigates over-fetching without GraphQL
+   ```
+
+3. **Batch Endpoints** (for common patterns):
+   ```
+   POST /api/students/batch
+   {
+     "ids": ["1", "2", "3"],
+     "include": "homeworks,progress"
+   }
+
+   # Fetch multiple students in one request
+   # Prevents N+1 requests from frontend
+   ```
+
+4. **Response Compression**:
+   - Enable gzip/brotli on API server
+   - Reduces bandwidth for large payloads
+
+5. **Aggressive HTTP Caching**:
+   - `Cache-Control: max-age=3600` for immutable content (Book, Word definitions)
+   - `ETag` for conditional requests
+   - CDN caching for public endpoints
 
 ---
 
@@ -292,26 +515,92 @@ When hitting limits, extract:
 
 ## 8. Implementation Priorities
 
-### Phase 1 (MVP - Months 1-3)
-1. Core authentication and student management
-2. Content ingestion (manual upload of books/words)
-3. Basic homework assignment workflow
-4. Simple quiz generation and taking
-5. Basic progress tracking (StudentWordProgress CRUD)
+### Phase 1 (MVP - Months 1-3) - REST API Foundation
+1. **Core authentication and student management**
+   - JWT-based auth with /api/auth/* endpoints
+   - Student registration and profile management
+   - Role-based access control (Student/Teacher/Admin)
+
+2. **RESTful API design with OpenAPI/Swagger documentation**
+   - Core CRUD endpoints for all models
+   - Embedded resource loading (?include= pattern)
+   - Pagination, filtering, sorting standards
+   - Error handling conventions
+
+3. **Content ingestion (manual upload of books/words)**
+   - Book/Chapter/Word creation via REST endpoints
+   - Multipart file upload for cover images
+   - CSV bulk import for vocabulary lists
+
+4. **Basic homework assignment workflow**
+   - POST /api/homeworks with word assignments
+   - GET /api/students/:id/homeworks?include=words
+   - PATCH /api/homework-words/:id/complete
+
+5. **Simple quiz generation and taking**
+   - POST /api/quiz-attempts (start quiz)
+   - POST /api/quiz-attempts/:id/answers (submit answers)
+   - POST /api/quiz-attempts/:id/complete (finish quiz)
+
+6. **Basic progress tracking (StudentWordProgress CRUD)**
+   - GET /api/students/:id/progress?status=LEARNING
+   - PATCH /api/student-word-progress/:id
+   - GET /api/students/:id/review-queue (nextReviewAt-based)
 
 ### Phase 2 (Enhanced Features - Months 4-6)
-1. Spaced repetition algorithm implementation
-2. Advanced quiz types (FILL_BLANK, USAGE)
-3. Analytics dashboards
-4. Email notifications
-5. GraphQL optimization for complex queries
+1. **Spaced repetition algorithm implementation**
+   - Background job for nextReviewAt calculation
+   - Adaptive interval adjustment based on performance
+   - Review notification system
+
+2. **Advanced quiz types (FILL_BLANK, USAGE)**
+   - Extended question type support
+   - Answer validation logic for each type
+   - Question difficulty calibration
+
+3. **Analytics dashboards**
+   - GET /api/students/:id/analytics endpoints
+   - Pre-computed aggregations (daily batch jobs)
+   - Performance trends and mastery reports
+
+4. **Email notifications**
+   - Homework due date reminders
+   - Review queue notifications
+   - Weekly progress summaries
+
+5. **GraphQL evaluation and potential pilot**
+   - **Criteria check**: Are we seeing >5 REST calls for common views?
+   - **Pilot**: Implement GraphQL for Student Progress queries only
+   - **Tooling**: Set up Apollo Server, GraphQL Playground
+   - **Coexistence**: Run GraphQL alongside existing REST endpoints
+   - **Decision**: Measure performance improvements before full migration
 
 ### Phase 3 (Scale & Intelligence - Months 7-12)
-1. NLP-powered content processing
-2. Adaptive learning algorithms
-3. Performance optimizations (caching, read replicas)
-4. Mobile app API optimizations
-5. Background job infrastructure
+1. **NLP-powered content processing**
+   - Automated sentence extraction from chapters
+   - Difficulty scoring algorithms
+   - Part-of-speech tagging for word analysis
+
+2. **Adaptive learning algorithms**
+   - Personalized quiz generation based on progress
+   - Optimal review interval prediction (ML-based)
+   - Content recommendation engine
+
+3. **Performance optimizations**
+   - Redis caching for frequently accessed content
+   - Database read replicas for analytics queries
+   - Query optimization (indexes, materialized views)
+   - CDN for static content delivery
+
+4. **Mobile app API optimizations**
+   - **If GraphQL adopted**: Full migration for mobile endpoints
+   - **If REST retained**: Response compression, field filtering
+   - Offline sync strategies
+
+5. **Background job infrastructure**
+   - BullMQ for job queue management
+   - Scheduled tasks: review scheduling, analytics aggregation
+   - Event-driven progress updates
 
 ---
 
