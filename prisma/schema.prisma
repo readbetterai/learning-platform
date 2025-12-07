@@ -1,0 +1,302 @@
+// This is your Prisma schema file for the English Learning Platform
+// Learn more about Prisma: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// CORE CONTENT MODELS
+// ============================================
+
+model Book {
+  id                String    @id @default(cuid())
+  title             String
+  author            String
+  description       String?   @db.Text
+  isbn              String?   @unique
+  publishedYear     Int?
+  coverImageUrl     String?
+  averageDifficulty Float?    // Calculated from words in book
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  chapters          Chapter[]
+
+  @@index([title])
+  @@index([author])
+}
+
+model Chapter {
+  id            String   @id @default(cuid())
+  bookId        String
+  chapterNumber Int
+  title         String
+  content       String?  @db.Text // Full chapter text for sentence extraction
+  wordCount     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  book      Book       @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  sentences Sentence[]
+  quizzes   Quiz[]
+
+  @@unique([bookId, chapterNumber])
+  @@index([bookId])
+}
+
+model Word {
+  id              String   @id @default(cuid())
+  word            String   @unique // Stored in lowercase for consistency
+  difficultyScore Int      // 1-100 scale
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  definitions         WordDefinition[]
+  exampleSentences    ExampleSentence[]
+  sentenceUsages      WordInSentence[]
+  studentProgress     StudentWordProgress[]
+  quizQuestions       QuizQuestion[]
+  homeworkAssignments HomeworkWord[]
+
+  @@index([difficultyScore])
+  @@index([word])
+}
+
+model WordDefinition {
+  id         String @id @default(cuid())
+  wordId     String
+  definition String @db.Text
+
+  // Relations
+  word Word @relation(fields: [wordId], references: [id], onDelete: Cascade)
+
+  @@index([wordId])
+}
+
+// Curated educational examples for vocabulary learning
+// These are dictionary-style, professionally written examples
+// NOT from books - use Sentence + WordInSentence for book occurrences
+model ExampleSentence {
+  id       String @id @default(cuid())
+  wordId   String
+  sentence String @db.Text
+
+  // Relations
+  word Word @relation(fields: [wordId], references: [id], onDelete: Cascade)
+
+  @@index([wordId])
+}
+
+// ============================================
+// SENTENCE-BASED WORD TRACKING
+// ============================================
+
+model Sentence {
+  id        String   @id @default(cuid())
+  chapterId String
+  position  Int      // Sentence number in chapter (1st, 2nd, 3rd, etc.)
+  text      String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  chapter    Chapter          @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  wordUsages WordInSentence[]
+
+  @@unique([chapterId, position])
+  @@index([chapterId])
+}
+
+model WordInSentence {
+  id         String   @id @default(cuid())
+  wordId     String
+  sentenceId String
+  createdAt  DateTime @default(now())
+
+  // Relations
+  word     Word     @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  sentence Sentence @relation(fields: [sentenceId], references: [id], onDelete: Cascade)
+
+  @@unique([wordId, sentenceId])
+  @@index([wordId])
+  @@index([sentenceId])
+}
+
+// ============================================
+// STUDENT & LEARNING MODELS
+// ============================================
+
+model Student {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  email        String   @unique
+  password     String   // Hashed with bcrypt
+  firstName    String
+  lastName     String
+  currentLevel String?  @default("BEGINNER") // BEGINNER, INTERMEDIATE, ADVANCED
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  homeworks       Homework[]
+  wordProgress    StudentWordProgress[]
+  quizAttempts    QuizAttempt[]
+
+  @@index([username])
+  @@index([email])
+}
+
+model Homework {
+  id                  String    @id @default(cuid())
+  studentId           String
+  assignedDate        DateTime  @default(now())
+  dueDate             DateTime
+  difficultyThreshold Int       @default(20) // Optional guideline for word difficulty
+  status              String    @default("ASSIGNED") // ASSIGNED, IN_PROGRESS, COMPLETED
+  completedAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  // Relations
+  student       Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  assignedWords HomeworkWord[] // Specific words assigned to this homework
+
+  @@index([studentId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model HomeworkWord {
+  id         String   @id @default(cuid())
+  homeworkId String
+  wordId     String
+  completed  Boolean  @default(false) // Track per-word completion
+  createdAt  DateTime @default(now())
+
+  // Relations
+  homework Homework @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
+  word     Word     @relation(fields: [wordId], references: [id], onDelete: Cascade)
+
+  @@unique([homeworkId, wordId])
+  @@index([homeworkId])
+  @@index([wordId])
+}
+
+model StudentWordProgress {
+  id             String    @id @default(cuid())
+  studentId      String
+  wordId         String
+  status         String    @default("NEW") // NEW, LEARNING, REVIEWING, MASTERED
+  correctCount   Int       @default(0)
+  incorrectCount Int       @default(0)
+  lastReviewedAt DateTime?
+  nextReviewAt   DateTime? // For spaced repetition scheduling
+  masteredAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  word    Word    @relation(fields: [wordId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, wordId])
+  @@index([studentId])
+  @@index([wordId])
+  @@index([status])
+  @@index([nextReviewAt])
+}
+
+// ============================================
+// QUIZ & ASSESSMENT MODELS
+// ============================================
+
+model Quiz {
+  id          String   @id @default(cuid())
+  title       String
+  description String?  @db.Text
+  chapterId   String?  // Optional - can be chapter-specific or custom
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  chapter   Chapter?       @relation(fields: [chapterId], references: [id], onDelete: SetNull)
+  questions QuizQuestion[]
+  attempts  QuizAttempt[]
+
+  @@index([chapterId])
+}
+
+model QuizQuestion {
+  id            String @id @default(cuid())
+  quizId        String
+  wordId        String
+  questionType  String // DEFINITION, FILL_BLANK, MULTIPLE_CHOICE, USAGE
+  questionText  String @db.Text
+  correctAnswer String @db.Text
+  options       Json?  // For multiple choice questions: ["option1", "option2", ...]
+
+  // Relations
+  quiz            Quiz                @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  word            Word                @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  attemptAnswers  QuizAttemptAnswer[]
+
+  @@index([quizId])
+  @@index([wordId])
+}
+
+model QuizAttempt {
+  id             String    @id @default(cuid())
+  quizId         String
+  studentId      String
+  score          Float     // Percentage or points
+  totalQuestions Int
+  correctAnswers Int
+  answers        Json?     // DEPRECATED: Use QuizAttemptAnswer table instead. Kept for backward compatibility
+  status         String    @default("IN_PROGRESS") // IN_PROGRESS, COMPLETED, ABANDONED, PAUSED
+  startedAt      DateTime  @default(now())
+  completedAt    DateTime?
+  expiresAt      DateTime? // Auto-abandon after certain time
+  abandonedAt    DateTime?
+
+  // Relations
+  quiz            Quiz                @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  student         Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  attemptAnswers  QuizAttemptAnswer[]
+
+  @@index([quizId])
+  @@index([studentId])
+  @@index([completedAt])
+  @@index([status])
+  @@index([studentId, completedAt])
+  @@index([quizId, score])
+  @@index([studentId, status])
+}
+
+model QuizAttemptAnswer {
+  id              String    @id @default(cuid())
+  attemptId       String
+  questionId      String
+  studentAnswer   String    @db.Text
+  isCorrect       Boolean
+  timeSpentMs     Int?      // Time spent on this question in milliseconds
+  confidenceLevel String?   // LOW, MEDIUM, HIGH (optional metacognition tracking)
+  answeredAt      DateTime  @default(now())
+
+  // Relations
+  attempt  QuizAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@index([attemptId])
+  @@index([questionId])
+  @@index([isCorrect])
+}
