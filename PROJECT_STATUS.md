@@ -137,6 +137,7 @@ curl http://localhost:3000/api/v1
 | `PHASE1_IMPLEMENTATION_PLAN.md` | Detailed Phase 1 implementation guide (current phase) |
 | `ESSAY_FEEDBACK_FEATURE_PLAN.md` | Essay feedback system plan (Phase 2) |
 | `ARCHITECTURE.md` | High-level system architecture and design |
+| `BACKUP_STRATEGY.md` | Database backup strategy and procedures |
 | `PROJECT_STATUS.md` | This file - current status and next steps |
 | `README.md` | Project overview and getting started |
 | `prisma/schema.prisma` | Complete database schema |
