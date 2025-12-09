@@ -1,6 +1,46 @@
 # Backend Architecture Plan
 ## English Learning Platform - High-Level System Design
 
+**Last Updated**: December 9, 2025
+**Current Phase**: Phase 1 - Foundation (Milestone 0 Complete)
+**Status**: ✅ Infrastructure Ready - Authentication Implementation Next
+
+---
+
+## Implementation Status
+
+### ✅ Completed (Milestone 0)
+- **NestJS Framework**: TypeScript-based modular architecture
+- **Database**: PostgreSQL 16 with Prisma ORM
+- **Infrastructure**:
+  - Pino structured logging with PII redaction
+  - Helmet security middleware
+  - CORS configuration
+  - Global validation pipes (class-validator)
+  - Swagger API documentation
+- **Database Schema**: 21 tables including:
+  - Student, Teacher models
+  - Content, Chapter, Word models
+  - Homework, Quiz models
+  - Essay feedback models (EssayAssignment, Essay, EssaySubmission, TeacherFeedback)
+- **Seed Data**: Test accounts and sample content loaded
+
+### ⏳ In Progress
+- None - Ready to start Milestone 1
+
+### 📋 Upcoming (Phase 1)
+- **Milestone 1**: Authentication & Authorization (JWT, Passport)
+- **Milestone 2**: Student Management
+- **Milestone 3**: Content Management
+- **Milestone 4**: Homework System
+- **Milestone 5**: Quiz System
+- **Milestone 6**: Progress Tracking
+- **Milestone 7**: Testing Infrastructure
+- **Milestone 8**: Production Deployment
+
+### 📅 Future (Phase 2)
+- Essay Feedback System (see `ESSAY_FEEDBACK_FEATURE_PLAN.md`)
+
 ---
 
 ## 1. Architecture Pattern: Modular Monolith
@@ -37,7 +77,7 @@
 ## 2. Key System Modules (Bounded Contexts)
 
 ### A. Content Management Module
-- Book/Chapter/Sentence ingestion and storage
+- Content/Chapter/Sentence ingestion and storage (books, articles, videos, podcasts)
 - Word dictionary management (definitions, examples)
 - Content search and retrieval
 - Difficulty scoring algorithms
@@ -69,6 +109,17 @@
 - Homework due dates
 - Review reminders (nextReviewAt scheduling)
 - Achievement notifications
+- Essay feedback notifications
+
+### G. Essay Management Module (Phase 2)
+- Content-based essay assignments (linked to books, articles, videos, podcasts)
+- Student essay submission with Word document upload
+- Automatic .docx to PDF conversion
+- Teacher review with external annotation workflow
+- Iterative feedback and revision cycles
+- Version tracking and side-by-side comparison
+- File storage via Cloudflare R2
+- Email notifications for feedback and submissions
 
 ---
 
@@ -95,7 +146,7 @@ For the MVP phase, we'll use a **RESTful API** with pragmatic endpoint design:
 ### REST API Design for MVP
 
 #### Core Principles
-1. **Resource-oriented URLs**: `/students`, `/books`, `/quizzes`
+1. **Resource-oriented URLs**: `/students`, `/content`, `/quizzes`
 2. **Nested resources for relationships**: `/homeworks/:id/words`
 3. **Query parameters for filtering**: `?status=ACTIVE&sort=dueDate`
 4. **Embedded resources to reduce roundtrips**: `?include=words,progress`
@@ -113,9 +164,9 @@ GET    /api/students/:id/profile
 
 **Content Management**
 ```
-GET    /api/books?difficulty=INTERMEDIATE&page=1
-GET    /api/books/:id
-GET    /api/books/:id/chapters
+GET    /api/content?type=BOOK&difficulty=INTERMEDIATE&page=1
+GET    /api/content/:id
+GET    /api/content/:id/chapters
 GET    /api/chapters/:id/sentences?include=words
 GET    /api/words/:id?include=definitions,examples
 POST   /api/words/:id/track          # Add to student's learning list
@@ -151,8 +202,23 @@ GET    /api/students/:id/review-queue  # Words due for review (nextReviewAt)
 
 **File Uploads**
 ```
-POST   /api/books/:id/cover-image     # Multipart form upload
-POST   /api/content/import            # Bulk book/chapter import
+POST   /api/content/:id/cover-image   # Multipart form upload
+POST   /api/content/import            # Bulk content/chapter import
+```
+
+**Essay Management (Phase 2)**
+```
+# Teacher endpoints
+POST   /api/essays/assignments                      # Create content-based essay assignment
+GET    /api/essays/submissions/:id/review           # Get submission for review
+POST   /api/essays/submissions/:id/feedback         # Upload annotated PDF + feedback (multipart)
+PATCH  /api/essays/:id/complete                     # Mark essay as complete
+
+# Student endpoints
+GET    /api/essays/assignments                      # Get available assignments
+POST   /api/essays/submissions                      # Upload .docx essay (multipart)
+GET    /api/essays/:id                              # Get essay with all versions
+GET    /api/essays/:id/compare?version1=1&version2=2 # Compare two versions
 ```
 
 #### Response Patterns
@@ -235,7 +301,7 @@ GET /api/students/123/quiz-attempts?page=2&limit=20
 ```graphql
 type Query {
   student(id: ID!): Student
-  book(id: ID!): Book
+  content(id: ID!): Content
   quiz(id: ID!): Quiz
   myHomeworks(page: Int, limit: Int): HomeworkConnection
 }
@@ -334,7 +400,7 @@ type Subscription {
    - Reduces bandwidth for large payloads
 
 5. **Aggressive HTTP Caching**:
-   - `Cache-Control: max-age=3600` for immutable content (Book, Word definitions)
+   - `Cache-Control: max-age=3600` for immutable content (Content, Word definitions)
    - `ETag` for conditional requests
    - CDN caching for public endpoints
 
@@ -351,7 +417,7 @@ type Subscription {
 4. System tracks which words are completed (HomeworkWord.completed)
 
 #### B. Active Learning Session
-1. Student encounters word in book chapter context
+1. Student encounters word in content chapter context (book, article, video transcript, etc.)
 2. System retrieves word from Sentence → WordInSentence junction
 3. Display word with definitions and curated examples
 4. Student marks understanding level
@@ -383,9 +449,36 @@ type Subscription {
    - Words by status (NEW, LEARNING, REVIEWING, MASTERED)
    - Homework completion rates
    - Quiz performance trends
-   - Book reading progress
+   - Content reading/viewing progress
 2. Teachers view student analytics
 3. System adjusts difficulty recommendations
+
+#### F. Essay Writing & Feedback Workflow (Phase 2)
+1. **Assignment Creation**:
+   - Teacher selects Content item (book chapter, article, video, podcast)
+   - Teacher creates EssayAssignment with prompt and due date
+   - Students receive notification
+2. **Student Submission**:
+   - Student reads/views assigned Content
+   - Student writes essay in Microsoft Word (offline)
+   - Student uploads .docx file → System auto-converts to PDF
+   - Creates EssaySubmission (version 1) with status "SUBMITTED"
+3. **Teacher Review**:
+   - Teacher downloads PDF from Cloudflare R2
+   - Teacher annotates PDF using external tool (Adobe, Preview)
+   - Teacher uploads annotated PDF + written feedback
+   - System updates submission status to "FEEDBACK_RECEIVED"
+   - Student receives email notification
+4. **Revision Iteration**:
+   - Student views annotated PDF and feedback
+   - Student revises essay incorporating feedback
+   - Student uploads revised .docx → System creates version 2
+   - Teacher reviews version 2 (can compare with version 1 side-by-side)
+   - Cycle repeats until teacher marks essay as "COMPLETED"
+5. **Version Comparison**:
+   - Teacher uses side-by-side PDF viewer to compare versions
+   - System tracks improvement across iterations
+   - All versions and feedback preserved for audit/grading
 
 ---
 
@@ -394,7 +487,7 @@ type Subscription {
 ### Content Ingestion Pipeline
 ```
 External Source → Content Parser → Validation →
-Book/Chapter Creation → NLP Sentence Extraction →
+Content/Chapter Creation → NLP Sentence Extraction →
 Word Tokenization → Dictionary Lookup →
 WordInSentence Junction Creation → Difficulty Scoring
 ```
@@ -421,7 +514,7 @@ Spaced Repetition Scheduler
 - **CQRS-lite**: Separate read models for dashboards (denormalized views)
 - **Event Sourcing (partial)**: QuizAttemptAnswer provides granular history
 - **Batch Processing**: Background jobs for review scheduling, analytics aggregation
-- **Caching**: Word definitions, book content (immutable data)
+- **Caching**: Word definitions, content data (immutable data)
 
 ---
 
@@ -441,7 +534,7 @@ Spaced Repetition Scheduler
   - Content processing (NLP-heavy)
 - **Caching Layer**: Redis for:
   - Session management
-  - Frequently accessed content (Word definitions, Book metadata)
+  - Frequently accessed content (Word definitions, Content metadata)
   - Rate limiting
   - Leaderboard calculations
 
@@ -457,7 +550,7 @@ Spaced Repetition Scheduler
 
 ### Future Service Extraction
 When hitting limits, extract:
-1. **Content Service**: Book/Chapter/Word (mostly read-heavy)
+1. **Content Service**: Content/Chapter/Word (mostly read-heavy)
 2. **Progress Service**: StudentWordProgress, Homework (write-heavy)
 3. **Quiz Service**: Quiz/Attempt/Answer (mixed workload, real-time needs)
 
@@ -493,12 +586,17 @@ When hitting limits, extract:
   - Homework assignments
   - Review reminders (based on nextReviewAt)
   - Weekly progress reports
+  - Essay feedback notifications (Phase 2)
+  - New submission alerts for teachers (Phase 2)
 - **Push Notifications**: Firebase Cloud Messaging, OneSignal for mobile apps
 - **SMS**: Twilio for critical reminders
 
 #### E. Storage
-- **Object Storage**: AWS S3, Cloudinary for cover images, audio pronunciations
-- **CDN**: CloudFront, Cloudflare for static content delivery
+- **Object Storage**:
+  - **Cloudflare R2**: Primary storage for essay files (.docx, PDFs) - Phase 2
+  - AWS S3 or Cloudinary: Cover images, audio pronunciations
+- **CDN**: Cloudflare for essay file delivery and static content
+- **File Processing**: LibreOffice (headless) for .docx to PDF conversion - Phase 2
 
 #### F. Payment (Future)
 - **Stripe**: Subscription management for premium features
@@ -527,9 +625,9 @@ When hitting limits, extract:
    - Pagination, filtering, sorting standards
    - Error handling conventions
 
-3. **Content ingestion (manual upload of books/words)**
-   - Book/Chapter/Word creation via REST endpoints
-   - Multipart file upload for cover images
+3. **Content ingestion (manual upload of content/words)**
+   - Content/Chapter/Word creation via REST endpoints
+   - Multipart file upload for cover images and thumbnails
    - CSV bulk import for vocabulary lists
 
 4. **Basic homework assignment workflow**
