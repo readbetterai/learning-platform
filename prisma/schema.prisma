@@ -413,3 +413,34 @@ model TeacherFeedback {
   @@index([submissionId])
   @@index([teacherId])
 }
+
+// ============================================
+// AUTHENTICATION & SECURITY MODELS
+// ============================================
+
+// Refresh tokens for JWT authentication with rotation support
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  userType  String   // 'student' | 'teacher'
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, userType])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+// Login attempts for account lockout and security monitoring
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  email     String
+  success   Boolean
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([email, createdAt])
+  @@index([email, success])
+}

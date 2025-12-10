@@ -16,7 +16,8 @@ import { RolesGuard } from './guards/roles.guard';
       useFactory: (configService: ConfigService): JwtModuleOptions => ({
         secret: configService.get<string>('jwt.secret'),
         signOptions: {
-          expiresIn: '7d',
+          expiresIn: '15m', // Updated from 7d for security
+          algorithm: 'HS256', // Explicitly specify algorithm
         },
       }),
     }),

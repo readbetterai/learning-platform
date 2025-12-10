@@ -3,7 +3,7 @@ import {
   IsEmail,
   IsNotEmpty,
   IsString,
-  MinLength,
+  IsStrongPassword,
   Matches,
 } from 'class-validator';
 
@@ -28,12 +28,25 @@ export class RegisterDto {
   email: string;
 
   @ApiProperty({
-    description: 'Password (minimum 8 characters)',
-    example: 'securePassword123',
+    description:
+      'Password (minimum 8 characters, must include uppercase, lowercase, number, and special character)',
+    example: 'SecurePass123!',
     minLength: 8,
   })
   @IsString()
-  @MinLength(8, { message: 'Password must be at least 8 characters long' })
+  @IsStrongPassword(
+    {
+      minLength: 8,
+      minLowercase: 1,
+      minUppercase: 1,
+      minNumbers: 1,
+      minSymbols: 1,
+    },
+    {
+      message:
+        'Password must be at least 8 characters and include at least one uppercase letter, one lowercase letter, one number, and one special character',
+    },
+  )
   password: string;
 
   @ApiProperty({
