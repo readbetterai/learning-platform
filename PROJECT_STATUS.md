@@ -1,20 +1,20 @@
 # PROJECT STATUS - English Learning Platform
-**Last Updated**: December 9, 2025
+**Last Updated**: December 10, 2025
 
 ---
 
 ## Quick Summary
 
-**Current Status**: ✅ Milestone 0 Complete - Foundation Ready
-**Next Step**: Milestone 1 - Authentication & Authorization
+**Current Status**: ✅ Milestone 1 Complete - Authentication Ready
+**Next Step**: Milestone 2 - Student Management
 **Application Running**: Yes (http://localhost:3000)
 **Database**: PostgreSQL 16 with 21 tables and seed data loaded
 
 ---
 
-## What We've Built (Milestone 0)
+## What We've Built
 
-### Infrastructure
+### Milestone 0: Foundation (Complete)
 - ✅ NestJS 11 application with TypeScript
 - ✅ PostgreSQL 16 database
 - ✅ Prisma ORM (v5.22.0) with complete schema
@@ -25,6 +25,20 @@
 - ✅ Swagger API documentation at `/api-docs`
 - ✅ Environment configuration (.env, type-safe config)
 - ✅ Development tooling (Prettier, ESLint, Jest)
+
+### Milestone 1: Authentication & Authorization (Complete)
+- ✅ JWT-based authentication with Passport.js
+- ✅ Student registration endpoint (`POST /api/v1/auth/register`)
+- ✅ Single login endpoint for students and teachers (`POST /api/v1/auth/login`)
+- ✅ Token refresh mechanism (`POST /api/v1/auth/refresh`)
+- ✅ Protected profile endpoint (`GET /api/v1/auth/profile`)
+- ✅ JWT authentication guard (`JwtAuthGuard`)
+- ✅ Role-based access control guard (`RolesGuard`)
+- ✅ Custom decorators (`@CurrentUser()`, `@Public()`, `@Roles()`)
+- ✅ Swagger documentation for auth endpoints
+- ✅ Comprehensive tests (16 unit tests, 13 e2e tests)
+
+**Note**: Teacher accounts are created manually (via seed data or direct DB insert) - no public teacher registration for security.
 
 ### Database Schema (21 Tables)
 **Core Models**:
@@ -63,33 +77,47 @@ Database:        PostgreSQL 16 @ localhost:5432
 Database Name:   learning_platform
 ```
 
-### Test Endpoint
+### Auth Endpoints
 ```bash
-curl http://localhost:3000/api/v1
-# Returns: "Hello World!"
+# Register new student
+curl -X POST http://localhost:3000/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"new@example.com","password":"password123","username":"newuser","firstName":"New","lastName":"User"}'
+
+# Login (student or teacher)
+curl -X POST http://localhost:3000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"student@test.com","password":"password123"}'
+
+# Get profile (requires token)
+curl http://localhost:3000/api/v1/auth/profile \
+  -H "Authorization: Bearer <your-access-token>"
+
+# Refresh tokens
+curl -X POST http://localhost:3000/api/v1/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refreshToken":"<your-refresh-token>"}'
 ```
 
 ---
 
 ## What's Next
 
-### Immediate Next Step: Milestone 1 - Authentication & Authorization
+### Immediate Next Step: Milestone 2 - Student Management
 
-**Goal**: Implement JWT-based authentication with Passport.js
+**Goal**: Implement student CRUD operations and profile management
 
 **Tasks**:
-1. Create Auth module (service, controller)
-2. Implement JWT strategy with Passport
-3. Create registration endpoints (student/teacher)
-4. Create login endpoints with JWT tokens
-5. Implement refresh token mechanism
-6. Create auth guards and decorators
-7. Add Swagger documentation for auth endpoints
-8. Write comprehensive auth tests
+1. Create Student module (service, controller)
+2. Implement GET /students (admin/teacher only)
+3. Implement GET /students/:id
+4. Implement PATCH /students/:id (self-update)
+5. Implement DELETE /students/:id (soft delete)
+6. Add student search and filtering
+7. Add pagination support
+8. Write comprehensive tests
 
-**Estimated Time**: 1 week (Week 2 of Phase 1)
-
-**Reference**: See `PHASE1_IMPLEMENTATION_PLAN.md` - Milestone 1
+**Reference**: See `PHASE1_IMPLEMENTATION_PLAN.md` - Milestone 2
 
 ---
 
@@ -98,8 +126,8 @@ curl http://localhost:3000/api/v1
 | Milestone | Description | Status | Week |
 |-----------|-------------|--------|------|
 | 0 | Foundation & Setup | ✅ Complete | Week 1 |
-| 1 | Authentication & Authorization | ⏳ Next | Week 2 |
-| 2 | Student Management | 📋 Pending | Week 3 |
+| 1 | Authentication & Authorization | ✅ Complete | Week 2 |
+| 2 | Student Management | ⏳ Next | Week 3 |
 | 3 | Content Management | 📋 Pending | Week 3 |
 | 4 | Homework System | 📋 Pending | Week 4 |
 | 5 | Quiz System | 📋 Pending | Week 4 |
@@ -120,7 +148,7 @@ curl http://localhost:3000/api/v1
 - ✅ Teacher accounts configured
 
 **Dependencies** (from Phase 1):
-- Authentication system (Milestone 1)
+- ✅ Authentication system (Milestone 1) - DONE
 - Student management (Milestone 2)
 - Content management (Milestone 3) - essays must link to content
 
@@ -204,10 +232,20 @@ See `.env.example` for complete list and default values.
 
 ---
 
+## Git History
+
+| Commit | Description |
+|--------|-------------|
+| `66823e4` | Implement authentication system (Milestone 1) |
+| `fd33a9d` | Add database backup strategy documentation |
+| `12f2fe1` | Complete Phase 1 Milestone 0: Foundation setup |
+
+---
+
 ## Questions?
 
 **For Phase 1 implementation details**: See `PHASE1_IMPLEMENTATION_PLAN.md`
 **For architecture questions**: See `ARCHITECTURE.md`
 **For essay feature details**: See `ESSAY_FEEDBACK_FEATURE_PLAN.md`
 
-**Ready to start Milestone 1?** Follow the steps in `PHASE1_IMPLEMENTATION_PLAN.md` starting at line 1043 (Milestone 1: Authentication & Authorization).
+**Ready to start Milestone 2?** Follow the steps in `PHASE1_IMPLEMENTATION_PLAN.md` - Milestone 2: Student Management.

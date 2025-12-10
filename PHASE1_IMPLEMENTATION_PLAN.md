@@ -125,7 +125,7 @@
 - API prefix: `/api/v1`
 - Test data loaded and ready for development
 
-**Next Milestone**: Milestone 1 - Authentication & Authorization
+**Next Milestone**: ✅ Milestone 1 - Authentication & Authorization (COMPLETED December 10, 2025)
 
 ---
 
@@ -1042,7 +1042,89 @@
 
 ### MILESTONE 1: Authentication & Authorization (Week 2)
 
-**STATUS: ⏳ NEXT - Ready to Start**
+**STATUS: ✅ COMPLETED**
+
+**Completion Date**: December 10, 2025
+
+**Summary of Completed Work**:
+- ✅ JWT-based authentication with Passport.js
+- ✅ Student registration endpoint (`POST /api/v1/auth/register`)
+- ✅ Single login endpoint for students and teachers (`POST /api/v1/auth/login`)
+- ✅ Token refresh mechanism (`POST /api/v1/auth/refresh`)
+- ✅ Protected profile endpoint (`GET /api/v1/auth/profile`)
+- ✅ JWT authentication guard (`JwtAuthGuard`)
+- ✅ Role-based access control guard (`RolesGuard`)
+- ✅ Custom decorators (`@CurrentUser()`, `@Public()`, `@Roles()`)
+- ✅ Swagger documentation for auth endpoints
+- ✅ Comprehensive tests (16 unit tests, 13 e2e tests - all passing)
+
+**Design Decisions**:
+- Single login endpoint checks both Student and Teacher tables (Student first, then Teacher)
+- Teacher accounts are created manually (no public registration) for security
+- Access tokens expire in 7 days, refresh tokens in 30 days
+- JWT payload includes: `sub` (userId), `email`, `role` (student/teacher)
+
+**Files Created**:
+```
+src/auth/
+├── auth.module.ts           # Module with JWT configuration
+├── auth.controller.ts       # REST endpoints
+├── auth.service.ts          # Core business logic
+├── auth.service.spec.ts     # Unit tests (16 tests)
+├── strategies/
+│   └── jwt.strategy.ts      # Passport JWT strategy
+├── guards/
+│   ├── jwt-auth.guard.ts    # JWT authentication guard
+│   ├── roles.guard.ts       # Role-based access control
+│   └── index.ts
+├── decorators/
+│   ├── current-user.decorator.ts  # Extract user from request
+│   ├── public.decorator.ts        # Mark routes as public
+│   ├── roles.decorator.ts         # Restrict by role
+│   └── index.ts
+└── dto/
+    ├── register.dto.ts      # Student registration validation
+    ├── login.dto.ts         # Login validation
+    ├── auth-response.dto.ts # Response shapes
+    └── index.ts
+
+test/
+└── auth.e2e-spec.ts         # E2E tests (13 tests)
+```
+
+**API Endpoints**:
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| POST | `/api/v1/auth/register` | Register new student | Public |
+| POST | `/api/v1/auth/login` | Login (student or teacher) | Public |
+| POST | `/api/v1/auth/refresh` | Refresh access token | Public |
+| GET | `/api/v1/auth/profile` | Get current user profile | Protected |
+
+**Usage Examples**:
+```typescript
+// Protect a route
+@UseGuards(JwtAuthGuard)
+@Get('protected')
+getProtected() { ... }
+
+// Get current user
+@Get('me')
+getMe(@CurrentUser() user: CurrentUserPayload) {
+  return user; // { userId, email, role }
+}
+
+// Role-based access
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('teacher')
+@Get('teacher-only')
+teacherOnly() { ... }
+```
+
+**Next Milestone**: Milestone 2 - Student Management
+
+---
+
+**Original Plan (for reference)**:
 
 **Prerequisites**: ✅ Milestone 0 completed
 
