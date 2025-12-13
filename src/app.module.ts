@@ -9,6 +9,9 @@ import configuration from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { StudentsModule } from './students/students.module';
+import { ContentModule } from './content/content.module';
+import { ChaptersModule } from './chapters/chapters.module';
+import { WordsModule } from './words/words.module';
 
 @Module({
   imports: [
@@ -84,6 +87,9 @@ import { StudentsModule } from './students/students.module';
       },
     }),
     StudentsModule,
+    ContentModule,
+    ChaptersModule,
+    WordsModule,
   ],
   controllers: [AppController],
   providers: [
