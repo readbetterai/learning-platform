@@ -370,6 +370,9 @@ export class AuthService {
     });
   }
 
+  // TODO: Set up a scheduled task (e.g., @nestjs/schedule) to call
+  // cleanupExpiredTokens() and cleanupOldLoginAttempts() periodically (e.g., daily)
+
   /**
    * Clean up expired tokens (can be run as a cron job)
    */

@@ -8,6 +8,7 @@ import { AppService } from './app.service';
 import configuration from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
+import { StudentsModule } from './students/students.module';
 
 @Module({
   imports: [
@@ -82,6 +83,7 @@ import { AuthModule } from './auth/auth.module';
         },
       },
     }),
+    StudentsModule,
   ],
   controllers: [AppController],
   providers: [
